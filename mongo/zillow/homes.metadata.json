@@ -1,0 +1,1 @@
+{"options":{},"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_","ns":"zillow.homes"}],"uuid":"35b9738a57d04c08a2a81ddf6694c333"}
