@@ -9,6 +9,13 @@ services:
       - ./config/secrets.env
     environment:
       - COMMANDER_PASSWORD=crawl_links
+      - PROVIDERS_AWSEC2_REGION=us-east-1
+      - PROVIDERS_AWSEC2_INSTANCE_INSTANCETYPE=t1.micro
+      - PROVIDERS_AWSEC2_INSTANCE_IMAGEID=ami-01bf2d405f1abcb34
+      - PROVIDERS_AWSEC2_INSTANCE_SECURITYGROUPS=forward-proxy
+      - PROVIDERS_TYPE=awsec2
+      - INSTANCE_SCALING_MIN=1
+      - INSTANCE_SCALING_MAX=2
     ports:
       - "8888:8888"
       - "8889:8889"
