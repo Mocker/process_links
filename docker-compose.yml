@@ -1,0 +1,36 @@
+version: '3.6'
+
+services:
+  scrapoxy:
+    image: fabienvauchelles/scrapoxy
+    networks:
+      - no_conflict
+    env_file:
+      - ./config/secrets.env
+    environment:
+      - COMMANDER_PASSWORD=crawl_links
+    ports:
+      - "8888:8888"
+      - "8889:8889"
+    tty: true
+    
+
+  php:
+    image: php
+    depends_on:
+      - scrapoxy
+    working_dir: /usr/src/app
+    command: "php crawl_links.php"
+    volumes:
+      - ./:/usr/src/app
+    networks:
+      - no_conflict
+
+
+networks:
+  no_conflict:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.100.0.0/24
