@@ -14,8 +14,8 @@ services:
       - PROVIDERS_AWSEC2_INSTANCE_IMAGEID=ami-01bf2d405f1abcb34
       - PROVIDERS_AWSEC2_INSTANCE_SECURITYGROUPS=forward-proxy
       - PROVIDERS_TYPE=awsec2
-      - INSTANCE_SCALING_MIN=1
-      - INSTANCE_SCALING_MAX=2
+      - INSTANCE_SCALING_MIN=0
+      - INSTANCE_SCALING_MAX=0
     ports:
       - "8888:8888"
       - "8889:8889"
@@ -27,7 +27,9 @@ services:
     depends_on:
       - scrapoxy
     working_dir: /usr/src/app
-    command: "php crawl_links.php"
+    environment:
+      - SCRAPOXY_PWD=crawl_links
+#    command: "php crawl_links.php"
     volumes:
       - ./:/usr/src/app
     networks:
