@@ -73,11 +73,14 @@ while($zips_read++ <= $MAX_ZIPS && $listings_read < $MAX_LISTINGS && $proxies_re
             fwrite($log_file, microtime()." - $http_status - $url \n");
             if( 'HTTP/2 200' != $http_status && 'HTTP/1.1 200' != $http_status ) {
                 $failures++;
-                //get proxy instance name and send request to stop it so it will rotate ips
+                //rotate ALL proxies when we get an error code. Because zillow links are https we cannot get a header with the individual proxy used so we can't target the one that failed
                 print "Received failure HTTP response - $http_status - rotating all proxies\n";
                 fwrite($log_file, microtime()." - Received failure HTTP response - $http_status - rotating all proxies\n");
-                print shell_exec("curl -s -H \"Content-Type: application/json\" -H \"Authorization: $SCRAPOXY_AUTH\" --request POST --data '{\"name\":\"$proxy_name\"}' http://scrapoxy:8889/api/instances/stop");
-                fwrite($log_file, microtime()." - Rotated proxy [$proxy_name]\n");
+                $proxy_down = "curl -s -i -H \"Content-Type: application/json\" -H \"Authorization: $SCRAPOXY_AUTH\" --request PATCH --data '{\"min\":\"0\",\"max\":\"0\",\"required\":\"0\"}' http://scrapoxy:8889/api/scaling";
+                exec($proxy_down);
+                sleep(20);
+                exec("curl  -s -H \"Content-Type: application/json\" -H \"Authorization: $SCRAPOXY_AUTH\" --request PATCH --data '{\"min\":\"$SCRAPOXY_MIN\",\"max\":\"$SCRAPOXY_MAX\",\"required\":\"$SCRAPOXY_REQUIRED\"}' http://scrapoxy:8889/api/scaling");
+                sleep(20);
                 print "Waiting for another proxy to be available.. \n";
                 $proxy_status = waitForInstances($SCRAPOXY_AUTH, 60);
                 $proxies_ready = count( array_filter($proxy_status, 'instanceIsAvailable') );
