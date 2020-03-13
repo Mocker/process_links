@@ -16,24 +16,28 @@ services:
       - PROVIDERS_TYPE=awsec2
       - INSTANCE_SCALING_MIN=0
       - INSTANCE_SCALING_MAX=0
+      - INSTANCE_ADDPROXYNAMEINREQUEST=true
+      - PROXY_MITM=true
+    volumes:
+      - ./config/scrapoxy_config.js:/config.js
     ports:
       - "8888:8888"
       - "8889:8889"
     tty: true
     
 
-  php:
-    image: php
-    depends_on:
-      - scrapoxy
-    working_dir: /usr/src/app
-    environment:
-      - SCRAPOXY_PWD=crawl_links
+#  php:
+#    image: php
+#    depends_on:
+#      - scrapoxy
+#    working_dir: /usr/src/app
+#    environment:
+#      - SCRAPOXY_PWD=crawl_links
 #    command: "php crawl_links.php"
-    volumes:
-      - ./:/usr/src/app
-    networks:
-      - no_conflict
+#    volumes:
+#      - ./:/usr/src/app
+#    networks:
+#      - no_conflict
 
 
 networks:

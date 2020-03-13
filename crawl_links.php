@@ -71,7 +71,7 @@ while($zips_read++ <= $MAX_ZIPS && $listings_read < $MAX_LISTINGS && $proxies_re
             $headers = file_get_contents("$location.headers");
             $http_status = substr($headers, 0, 10);
             fwrite($log_file, microtime()." - $http_status - $url \n");
-            if( 'HTTP/2 200' != $http_status && 'HTTP/1.1 200' != $http_status ) {
+            if( 'HTTP/2 200' != $http_status && 'HTTP/1.1 2' != $http_status ) {
                 $failures++;
                 //rotate ALL proxies when we get an error code. Because zillow links are https we cannot get a header with the individual proxy used so we can't target the one that failed
                 print "Received failure HTTP response - $http_status - rotating all proxies\n";
