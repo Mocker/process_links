@@ -36,6 +36,7 @@ for(let i=0; i<5;i++){
 console.log("Checking there are available proxies..");
 waitForProxies( async (res) => {
     proxies = res;
+    let curProxy = 0;
     while(urls.length > 0 && listingsRead <= MAX_LISTINGS_READ ) {
         const url = urls.pop();
         console.log("Next url", url, '#'+listingsRead, proxies.length+' > '+MIN_PROXIES_REQUIRED+' proxies. ', activeRequests+' / '+MAX_ACTIVE_REQUESTS+' requests. ');
@@ -49,8 +50,10 @@ waitForProxies( async (res) => {
         }
         activeRequests++;
         listingsRead++;
+        if(curProxy >= proxies.length) curProxy = 0;
+        console.log(proxies[curProxy].address);
         let curl = spawn('curl', 
-            ['-L','-s','-x',config.proxy,'-A',USER_AGENT_IOS,'-D','./testcurl'+listingsRead+'.headers','-o','./testcurl'+listingsRead+'.html',url],
+            ['-L','-s','-x','http://'+proxies[curProxy].address.hostname+':'+proxies[curProxy].address.port,'-A',USER_AGENT_IOS,'-D','./testcurl'+listingsRead+'.headers','-o','./testcurl'+listingsRead+'.html',url],
             { });
         curl.stdout.on('data', (data)=>{ console.log("Curl data: ",data); });
         curl.stderr.on('data', (data)=>{ console.log("Curl error: ",data); });
@@ -58,6 +61,7 @@ waitForProxies( async (res) => {
                 console.log("Curl finished",val);
                 activeRequests--;
         });
+        curProxy++;
     }
     console.log("Waiting for any active requests to finish up");
     while(activeRequests > 0 ){
