@@ -13,6 +13,7 @@
     "bluebird": "^3.7.2",
     "cheerio": "^1.0.0-rc.3",
     "lodash": "^4.17.15",
+    "n-readlines": "^1.0.0",
     "request": "^2.88.2",
     "superagent": "^5.2.2",
     "winston": "^2.4.4"
