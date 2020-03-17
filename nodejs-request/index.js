@@ -9,12 +9,11 @@ const readline = require('readline');
 const config = {
     // URL of the site
     //https://www.zillow.com/homedetails/577-Mulberry-Dr-Fleming-Island-FL-32003/43701102_zpid/
-    uri: 'https://ifconfig.me/ip',
     url_dir: '../urls', //scan all files in the directory
     url_order: 'desc',
-    url_random: 'true',
-    //url_file: '../mongo/zillow/listings.json',
-    listings_dir: '../listings/',
+    //url_random: 'true', //will randomize which url file it downloads from. For large datasets however this will result in a lot of overlap and make it hard to see how many are actually done
+    //url_file: '../mongo/zillow/listings.json', //not used, we split it up into multiple files in url_dir
+    listings_dir: '../listings/', //where we save the files to, sorted by directory for zip
     // URL of Scrapoxy
     proxy: 'http://localhost:8888',
     proxyAdmin: 'http://localhost:8889',
@@ -24,13 +23,13 @@ const config = {
     log_dir: '../logs/',
 };
 
-const MIN_PROXIES_REQUIRED=3;
+const MIN_PROXIES_REQUIRED=7;
 let proxies = [];
-const MAX_ACTIVE_REQUESTS=4;
+const MAX_ACTIVE_REQUESTS=6;
 let activeRequests = 0;
-const MAX_LISTINGS_READ=1000;
+const MAX_LISTINGS_READ=10000;
 let listingsRead = 0;
-const MAX_ZIPS_READ=1000;
+const MAX_ZIPS_READ=5000;
 let zipsRead = 0;
 const USER_AGENT_IOS = '-A "Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_3_3 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8J2 Safari/6533.18.5"';
 const MAX_FAILED_IPS=15;
@@ -64,12 +63,22 @@ waitForProxies( async (res) => {
     let curProxy = 0;
     fs.appendFileSync(log_file, `Proxies ready: ${JSON.stringify(proxies)}\n`,'utf8');
     line = getNextLine();
+    let failuresPerZip = 1;
     while( zipsRead++ < MAX_ZIPS_READ && listingsRead < MAX_LISTINGS_READ && failed_ips < MAX_FAILED_IPS && line  ) {
+       
         zip = JSON.parse(line);
         dir = config.listings_dir+zip.Zip;
         if(!fs.existsSync(dir) ) fs.mkdirSync(dir);
+        failuresPerZip = 0; 
         console.log("Beginning zip",zip.Zip,zip.Homes.length);
         fs.appendFileSync(log_file, `Beginning zip ${zip.Zip} with ${zip.Homes.length} listings\n`, 'utf8');
+        if( fs.existsSync(dir+'/'+'done.txt') ) {
+            console.log(`Found done file, skipping zip ${zip.Zip}`);
+            fs.appendFileSync(log_file, `Found done file, skipping zip ${zip.Zip}\n`, 'utf8');
+            zipsRead--;
+            line = getNextLine();
+            continue;
+        }
         while(zip.Homes.length > 0 && listingsRead < MAX_LISTINGS_READ && failed_ips < MAX_FAILED_IPS) {
             const url = zip.Homes.pop();
             const a = url.split('/');
@@ -78,7 +87,7 @@ waitForProxies( async (res) => {
                 fname += a[5];
             }
             fname = dir + '/'+fname;
-            if(fs.existsSync(fname)){
+            if(fs.existsSync(fname+'.html')){
                 console.log("Exists "+fname);
                 existing_listings++;
                 continue;
@@ -129,7 +138,7 @@ waitForProxies( async (res) => {
                     let lineCounter=0;
                     lineReader.on('line', function(line){
                         lineCounter++;
-                        if(lineCounter==3){
+                        if(/HTTP\/[\d\.]+\s\d+/.test(line) && line.indexOf('HTTP/1.1 200 Connection established')<0 ){
                             console.log("status "+usedProxy.name+": ",line);
                             curl_logs.push( `[${line}] : ${zip.Zip} - ${fname} - ${usedProxy.name} - ${usedProxy.address.hostname}` );
                             fs.writeFile(fname+'.proxy', JSON.stringify(usedProxy), (err) => {
@@ -139,17 +148,36 @@ waitForProxies( async (res) => {
                             lineReader.removeAllListeners();
                             if( !/HTTP\/[\d\.]+\s200/.test(line) ){
                                 //move html file so next run it tries it again
+                                failuresPerZip++;
                                 console.log("Failed "+fname+" - IP: "+usedProxy.address.hostname);
+                                curl_logs.push(`FAILED ${zip.Zip} - ${fname} - ${usedProxy.address.hostname} - ${line}`);
                                 failed_ips++;
                                 listingsRead--;
-                                stopProxy(usedProxy.name);
-                                fs.rename( fname+'.html', fname+'.FAILED.html', (err)=>{});
+                                if( ! /\s404/.test(line) ) {
+                                    stopProxy(usedProxy.name).then( (response) => {
+                                        console.log("Stopped Proxy", response.body);
+                                        curl_logs.push(`Stopped proxy: ${response.body}`);
+                                    }).catch( (reason) => {
+                                        console.log("ERROR STOPPING PROXY: ", reason);
+                                        curl_logs.push(`ERROR STOPPING PROXY: ${reason}`);
+                                    });
+                                }
+                                fs.rename( fname+'.html', fname+'.FAILED.html', (err)=>{ console.log("Could not rename file", err); });
                             }
                         }
                     }) ;
                     activeRequests--;
             });
             curProxy++;
+        }
+        if(failuresPerZip==0){
+            fs.writeFileSync(dir+'/'+'done.txt', ' ');
+        }
+        if(curl_logs.length > 0){
+            for( line in curl_logs) {
+                fs.appendFileSync(log_file, curl_logs[line]+"\n", 'utf8');
+            }
+            curl_logs = [];
         }
         line = getNextLine();
     }
@@ -162,7 +190,10 @@ waitForProxies( async (res) => {
             resolve(stdout);
         });
     });
-    fs.appendFileSync(log_file, `Finished read ${listingsRead} urls in ${Date.now()-start} ms and size ${folderSize} - ${(Date.now()-start)/listingsRead} ms/listings - ${parseInt(folderSize.replace(/[^\d\.]/,''))/(listingsRead+existing_listings)} size/listing\n`, 'utf8');
+    fs.appendFileSync(log_file, `Finished read ${listingsRead} urls in ${Date.now()-start} ms and size ${folderSize} \n- ${failed_ips} bad responses \n- ${existing_listings} existing \n- ${(Date.now()-start)/listingsRead} ms/listings \n- ${parseInt(folderSize.replace(/[^\d\.]/,''))/(listingsRead+existing_listings)} size/listing\n`, 'utf8');
+    console.log(`Finished read ${listingsRead} urls in ${Date.now()-start} ms and size ${folderSize} - ${(Date.now()-start)/listingsRead} ms/listings \n- ${failed_ips} bad responses - ${existing_listings} existing \n- ${parseInt(folderSize.replace(/[^\d\.]/,''))/(listingsRead+existing_listings)} size/listing\n`);
+    
+    
     if(liner) liner.close();
     console.log("Waiting for any active requests to finish up");
     while(activeRequests > 0 ){
